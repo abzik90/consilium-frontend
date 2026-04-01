@@ -12,6 +12,12 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST || '164.92.172.190' }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      DEPLOY_POST_CMD: ${{ vars.DEPLOY_POST_CMD }}
 
     steps:
       - name: Checkout
@@ -34,43 +40,46 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
 
+      - name: Validate deploy settings
+        run: |
+          set -e
+          if [ -z "$DEPLOY_HOST" ]; then
+            echo "DEPLOY_HOST is empty. Set it in GitHub Actions Variables."
+            exit 1
+          fi
+          if [ -z "$DEPLOY_USER" ]; then
+            echo "DEPLOY_USER is empty. Set it in GitHub Actions Variables."
+            exit 1
+          fi
+          if [ -z "$DEPLOY_PATH" ]; then
+            echo "DEPLOY_PATH is empty. Set it in GitHub Actions Variables."
+            exit 1
+          fi
+          if ! [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]]; then
+            echo "DEPLOY_PORT must be numeric. Current value: '$DEPLOY_PORT'"
+            exit 1
+          fi
+          echo "Deploy target validated: ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH} (port ${DEPLOY_PORT})"
+
       - name: Add server host key
-        env:
-          DEPLOY_HOST: 164.92.172.190
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -p "${DEPLOY_PORT:-22}" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          ssh-keyscan -p "$DEPLOY_PORT" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
 
       - name: Ensure deploy path exists
-        env:
-          DEPLOY_HOST: 164.92.172.190
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
-          ssh -p "${DEPLOY_PORT:-22}" "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p '${DEPLOY_PATH}'"
+          ssh -p "$DEPLOY_PORT" "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p '${DEPLOY_PATH}'"
 
       - name: Deploy dist via rsync
-        env:
-          DEPLOY_HOST: 164.92.172.190
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
           rsync -az --delete \
-            -e "ssh -p ${DEPLOY_PORT:-22}" \
+            -e "ssh -p ${DEPLOY_PORT}" \
             dist/ "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"
 
       - name: Optional post-deploy command
-        env:
-          DEPLOY_HOST: 164.92.172.190
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_POST_CMD: ${{ secrets.DEPLOY_POST_CMD }}
         run: |
           if [ -n "${DEPLOY_POST_CMD}" ]; then
-            ssh -p "${DEPLOY_PORT:-22}" "${DEPLOY_USER}@${DEPLOY_HOST}" "$DEPLOY_POST_CMD"
+            ssh -p "$DEPLOY_PORT" "${DEPLOY_USER}@${DEPLOY_HOST}" "$DEPLOY_POST_CMD"
           else
             echo "No DEPLOY_POST_CMD provided, skipping post-deploy step"
           fi
