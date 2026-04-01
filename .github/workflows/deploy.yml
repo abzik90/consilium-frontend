@@ -63,11 +63,14 @@ jobs:
             dist/ "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"
 
       - name: Optional post-deploy command
-        if: ${{ secrets.DEPLOY_POST_CMD != '' }}
         env:
           DEPLOY_HOST: 164.92.172.190
           DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_POST_CMD: ${{ secrets.DEPLOY_POST_CMD }}
         run: |
-          ssh -p "${DEPLOY_PORT:-22}" "${DEPLOY_USER}@${DEPLOY_HOST}" "$DEPLOY_POST_CMD"
+          if [ -n "${DEPLOY_POST_CMD}" ]; then
+            ssh -p "${DEPLOY_PORT:-22}" "${DEPLOY_USER}@${DEPLOY_HOST}" "$DEPLOY_POST_CMD"
+          else
+            echo "No DEPLOY_POST_CMD provided, skipping post-deploy step"
+          fi
