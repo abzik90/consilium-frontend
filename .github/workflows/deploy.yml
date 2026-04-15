@@ -17,7 +17,7 @@ jobs:
       DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
       DEPLOY_USER: ${{ vars.DEPLOY_USER }}
       DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
-      DEPLOY_POST_CMD: ${{ vars.DEPLOY_POST_CMD }}
+      NGINX_SERVICE: ${{ vars.NGINX_SERVICE || 'nginx' }}
 
     steps:
       - name: Checkout
@@ -76,10 +76,6 @@ jobs:
             -e "ssh -p ${DEPLOY_PORT}" \
             dist/ "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"
 
-      - name: Optional post-deploy command
+      - name: Reload nginx
         run: |
-          if [ -n "${DEPLOY_POST_CMD}" ]; then
-            ssh -p "$DEPLOY_PORT" "${DEPLOY_USER}@${DEPLOY_HOST}" "$DEPLOY_POST_CMD"
-          else
-            echo "No DEPLOY_POST_CMD provided, skipping post-deploy step"
-          fi
+          ssh -p "$DEPLOY_PORT" "${DEPLOY_USER}@${DEPLOY_HOST}" "sudo systemctl reload ${NGINX_SERVICE}"
